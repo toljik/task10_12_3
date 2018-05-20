@@ -38,7 +38,7 @@ echo "<network>
   <ip address='$EXTERNAL_NET_HOST_IP' netmask='$EXTERNAL_NET_MASK'>
     <dhcp>
       <range start='$EXTERNAL_NET.2' end='$EXTERNAL_NET.254'/>
-      <host mac='${MAC}' name='$VM1_NAME' ip='$VM1_EXTERNAL_IP' dns='$VM_DNS' gateway='$EXTERNAL_NET_HOST_IP'/>
+      <host mac='${MAC}' name='$VM1_NAME' ip='$VM1_EXTERNAL_IP'/>
     </dhcp>
   </ip>
 </network>" >  $d/networks/$EXTERNAL_NET_NAME.xml
