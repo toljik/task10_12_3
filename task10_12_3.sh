@@ -38,7 +38,7 @@ echo "<network>
   <ip address='$EXTERNAL_NET_HOST_IP' netmask='$EXTERNAL_NET_MASK'>
     <dhcp>
       <range start='$EXTERNAL_NET.2' end='$EXTERNAL_NET.254'/>
-      <host mac='${MAC}' name='$VM1_NAME' ip='$VM1_EXTERNAL_IP'/>
+      <host mac='${MAC}' name='$VM1_NAME' ip='$VM1_EXTERNAL_IP' dns='$VM_DNS' gateway='$EXTERNAL_NET_HOST_IP'/>
     </dhcp>
   </ip>
 </network>" >  $d/networks/$EXTERNAL_NET_NAME.xml
@@ -65,13 +65,13 @@ openssl req -x509 -new \
 
 openssl genrsa -out $d/docker/certs/web.key 2048
 openssl req -new \
-        -key $d/docekr/certs/web.key \
+        -key $d/docker/certs/web.key \
         -nodes \
         -out $d/docker/certs/web.csr \
         -subj "/C=UA/ST=Kharkiv/L=Kharkiv/O=Mirantis/OU=NURE/CN=$(hostname)"
 
 
-openssl x509 -req -extfile <(printf "subjectAltName=IP:${EXTERNAL_IP},DNS:${HOST_NAME}")\
+openssl x509 -req -extfile <(printf "subjectAltName=IP:${VM1_EXTERNAL_IP},DNS:${VM1_NAME}")\
              -days 365 -in $d/docker/certs/web.csr \
              -CA $d/docker/certs/root.crt \
              -CAkey $d/docker/certs/root.key \
@@ -129,7 +129,7 @@ network-interfaces: |
 echo "#!/bin/bash
 echo 1 > /proc/sys/net/ipv4/ip_forward
 iptables -t nat -A POSTROUTING -o $VM1_EXTERNAL_IF -j MASQUERADE
-ip link add $VXLAN_IF type vxlan id $VID remote $VM2_VXLAN_IP local $VM1_VXLAN_IP dstport 4789
+ip link add $VXLAN_IF type vxlan id $VID remote $VM2_INTERNAL_IP local $VM1_INTERNAL_IP dstport 4789
 ip link set $VXLAN_IF up
 ip addr add $VM1_VXLAN_IP/24 dev $VXLAN_IF
 apt-get update -y
@@ -140,7 +140,7 @@ add-apt-repository \
   $(lsb_release -cs) stable'
 apt-get update -y
 apt-get install docker-ce -y 
-mount /dev/cdrom /mnt/
+mount -t iso9660 -o ro /dev/sr0 /mnt
 cp -r /mnt/docker /srv/docker
 docker run -d -p $NGINX_PORT:443 -v /srv/docker/etc:/etc/nginx/conf.d -v /srv/docker/certs:/etc/ssl/certs -v $NGINX_LOG_DIR:/var/log/nginx $NGINX_IMAGE  " > $d/config-drives/$VM1_NAME-config/user-data
 
@@ -157,7 +157,7 @@ network-interfaces: |
   iface $VM2_INTERNAL_IF inet static
   address $VM2_INTERNAL_IP
   netmask $INTERNAL_NET_MASK
-  gateway $VM1_INTERNNAL_IP 
+  gateway $VM1_INTERNAL_IP 
   dns-nameservers $VM_DNS
 
   auto $VM2_MANAGEMENT_IF
@@ -169,7 +169,7 @@ network-interfaces: |
 
 #user-data vm2
 echo "#!/bin/bash
-ip link add $VXLAN_IF type vxlan id $VID remote $VM1_VXLAN_IP local $VM2_VXLAN_IP dstport 4789
+ip link add $VXLAN_IF type vxlan id $VID remote $VM1_INTERNAL_IP local $VM2_INTERNAL_IP dstport 4789
 ip link set $VXLAN_IF up
 ip addr add $VM2_VXLAN_IP/24 dev $VXLAN_IF
 apt-get update -y
@@ -187,6 +187,7 @@ docker run -d -p $APACHE_PORT:80 $APACHE_IMAGE  " > $d/config-drives/$VM2_NAME-c
 cp $VMs_qcow2 $VM1_HDD
 cp $VMs_qcow2 $VM2_HDD
 
+cp -r $d/docker $d/config-drives/$VM1_NAME-config/docker
 mkisofs -o "$VM1_CONFIG_ISO" -V cidata -r -J --quiet  $d/config-drives/$VM1_NAME-config
 mkisofs -o "$VM2_CONFIG_ISO" -V cidata -r -J --quiet  $d/config-drives/$VM2_NAME-config
 
